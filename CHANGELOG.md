@@ -1,5 +1,10 @@
 # Changelog
 
+### 2026-11-20
+
+- **KDE Plasma integration** — new pure-data `src/desktop.py` resolves the palette once at startup. Inside a Plasma session (`desktop.theme: auto`, default) the UI now follows the KDE colour scheme read from `~/.config/kdeglobals`: Breeze, Breeze Dark or any custom scheme, the Plasma accent colour, the "General" UI font, the Breeze icon theme for the header buttons and tray menu, and the scheme's Positive / Negative / Neutral colours for statuses and badges (light schemes recolour the WizX20 wordmark so it stays legible). Qt gets a matching Fusion palette so message boxes and other un-styled widgets fit in too. Elsewhere — and with `theme: brand` — the warm dark theme is unchanged pixel for pixel: the ~200 hard-coded colour literals across `widgets.py`, `main.py`, `settings_ui.py` and `icons.py` became named palette roles whose brand values are the old literals. `ACTIONS_MONITOR_THEME=brand|system` overrides per run.
+- **Tray behaviour on Linux / KDE** — a single left click on the tray icon now toggles the window (StatusNotifierItem hosts such as Plasma send `Trigger` and never `DoubleClick`, so clicking used to do nothing). The tray menu gained Show/Hide, "Refresh all" and "Quit". On Plasma Wayland the app runs through XWayland (`desktop.xwayland: auto`) because KWin minimises native Wayland clients without notifying them — minimise-to-tray never fired there; under XWayland it arrives as a normal `WindowMinimized`. An explicit `QT_QPA_PLATFORM` is respected and `wayland` stays as fallback. When no tray host exists at all (e.g. GNOME without the AppIndicator extension) close now quits instead of hiding the window with no way back. The app no longer quits when its last visible window closes (it lives in the tray), and the tray item / WM class is named `ActionsMonitor` instead of the script name.
+
 ### 2026-09-11
 
 - **Releases are cut weekly** — the scheduled build now runs once, on Tuesday morning (06:00 UTC), instead of three times a day. A release is still only created when `main` changed since the previous one, so quiet weeks stay quiet; the manual Release workflow is unchanged.

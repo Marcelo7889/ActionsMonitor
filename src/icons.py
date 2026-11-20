@@ -15,8 +15,11 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from PySide6.QtGui import QPixmap, QImage
 
-# Mirror of main.FG_LINK — duplicated here to keep this module dependency-free.
-_FG_LINK = "#FBBF24"
+# Palette comes from desktop.py (pure data, no main import) — brand amber by
+# default, the Plasma accent / colour scheme inside a KDE session.
+import desktop as _desktop
+
+_FG_LINK = _desktop.PALETTE["FG_LINK"]
 
 # Status string constants — sourced from status.py (single source of truth).
 from status import (
@@ -30,15 +33,7 @@ from status import (
 )
 
 # Background fills for status icon circles (white glyph on top).
-_COLOUR_BG = {
-    _ST_UNKNOWN:   "#8C857F",
-    _ST_QUEUED:    "#CA8A04",
-    _ST_RUNNING:   "#CA8A04",
-    _ST_SUCCESS:   "#22994D",
-    _ST_FAILURE:   "#C53030",
-    _ST_CANCELLED: "#8C857F",
-    _ST_SKIPPED:   "#8C857F",
-}
+_COLOUR_BG = dict(_desktop.PALETTE["STATUS_FILL"])
 
 # Lucide-inspired status icons
 # ---------------------------------------------------------------------------
@@ -389,8 +384,10 @@ def _draw_bell_glyph(draw: ImageDraw.Draw, hi: int, fg_colour: str):
                   cx + cl_w / 2, cl_top + cl_w], fill=fg_colour)
 
 
-def _make_snooze_icon(size: int = _SNOOZE_ICON_SIZE, bg_colour: str = "#3D3530",
-                      fg_colour: str = "#A8A29E", off: bool = False) -> Image.Image:
+def _make_snooze_icon(size: int = _SNOOZE_ICON_SIZE,
+                      bg_colour: str = _desktop.PALETTE["SNOOZE_ICON"]["normal"][0],
+                      fg_colour: str = _desktop.PALETTE["SNOOZE_ICON"]["normal"][1],
+                      off: bool = False) -> Image.Image:
     """Bell icon on a filled circle background. When `off`, adds a diagonal slash."""
     img, draw, hi = _icon_base(size)
     pad = int(hi * 0.02)
@@ -417,12 +414,7 @@ def _pil_to_qpixmap(pil_img: Image.Image) -> QPixmap:
 _snooze_qpixmaps: dict[str, QPixmap] = {}
 
 
-_SNOOZE_ICON_STYLES = {
-    "normal":       ("#3D3530", "#A8A29E", False),
-    "hover":        ("#4A3728", "#FBBF24", False),
-    "active":       ("#92400E", "#FEF3C7", True),
-    "active_hover": ("#78350F", "#FFFFFF", True),
-}
+_SNOOZE_ICON_STYLES = dict(_desktop.PALETTE["SNOOZE_ICON"])
 
 
 def _init_snooze_icons():
@@ -1193,8 +1185,9 @@ def _generate_app_ico(path: Path) -> None:
         print(f"[Icon] Generate error: {exc}")
 
 
-def _generate_check_glyph(path: Path) -> None:
-    """Generate a white check-mark PNG used as the QCheckBox indicator image
+def _generate_check_glyph(path: Path,
+                          colour: str = _desktop.PALETTE["CHECK_GLYPH"]) -> None:
+    """Generate a check-mark PNG (white on the brand theme) used as the QCheckBox indicator image
     in the dark-theme stylesheet. Rendered at 4x supersample + LANCZOS for
     clean edges at 14x14 display size. Regenerated every startup."""
     try:
@@ -1208,7 +1201,7 @@ def _generate_check_glyph(path: Path) -> None:
             (hi * 0.44, hi * 0.74),
             (hi * 0.80, hi * 0.30),
         ]
-        draw.line(pts, fill="#FFFFFF", width=sw, joint="curve")
+        draw.line(pts, fill=colour, width=sw, joint="curve")
         img.resize((size, size), Image.LANCZOS).save(str(path), format="PNG")
     except Exception as exc:
         print(f"[Check glyph] Generate error: {exc}")

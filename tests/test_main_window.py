@@ -160,3 +160,74 @@ def test_screenshot_main_snoozed(app_env, screenshot):
     win._toggle_snooze((2, events[3].sub_key))
     win.resize(620, 560)
     screenshot(win, "main-snoozed-row")
+
+
+# ---------------------------------------------------------------------------
+# Tray / window visibility (KDE Plasma integration)
+# ---------------------------------------------------------------------------
+def _with_tray(monkeypatch):
+    from PySide6.QtWidgets import QSystemTrayIcon
+    monkeypatch.setattr(QSystemTrayIcon, "isSystemTrayAvailable", staticmethod(lambda: True))
+
+
+def test_toggle_window_hides_and_restores(app_env, monkeypatch):
+    _with_tray(monkeypatch)
+    win = app_env.make_window("workflows: []\n")
+    assert win.isVisible()
+    win._toggle_window()
+    assert not win.isVisible()
+    win._toggle_window()
+    assert win.isVisible()
+
+
+def test_tray_single_click_toggles_on_linux(app_env, monkeypatch):
+    from PySide6.QtWidgets import QSystemTrayIcon
+    m = app_env.main
+    monkeypatch.setattr(m, "IS_LINUX", True)
+    _with_tray(monkeypatch)
+    win = app_env.make_window("workflows: []\n")
+    # StatusNotifierItem hosts (Plasma) send Trigger for a left click.
+    win._on_tray_activated(QSystemTrayIcon.ActivationReason.Trigger)
+    assert not win.isVisible()
+    win._on_tray_activated(QSystemTrayIcon.ActivationReason.Trigger)
+    assert win.isVisible()
+
+
+def test_tray_single_click_ignored_on_windows(app_env, monkeypatch):
+    from PySide6.QtWidgets import QSystemTrayIcon
+    m = app_env.main
+    monkeypatch.setattr(m, "IS_LINUX", False)
+    _with_tray(monkeypatch)
+    win = app_env.make_window("workflows: []\n")
+    # Windows keeps the historical double-click-to-show behaviour.
+    win._on_tray_activated(QSystemTrayIcon.ActivationReason.Trigger)
+    assert win.isVisible()
+
+
+def test_no_tray_host_means_no_tray(app_env, monkeypatch):
+    from PySide6.QtWidgets import QSystemTrayIcon
+    monkeypatch.setattr(QSystemTrayIcon, "isSystemTrayAvailable", staticmethod(lambda: False))
+    win = app_env.make_window("workflows: []\n")
+    assert win._tray is None
+
+
+def test_close_and_minimise_hide_to_tray(app_env, monkeypatch):
+    from PySide6.QtWidgets import QSystemTrayIcon
+    from PySide6.QtCore import Qt
+    _with_tray(monkeypatch)
+    win = app_env.make_window("workflows: []\n")
+    assert win._tray is not None
+    win._sync_tray_menu()
+    assert win._tray_toggle_action.text() == "Hide"
+
+    win.close()  # "Minimize to tray" is on by default
+    app_env.main.QApplication.processEvents()
+    assert not win.isVisible()
+    win._sync_tray_menu()
+    assert win._tray_toggle_action.text() == "Show"
+
+    win._show_window()
+    win.setWindowState(Qt.WindowState.WindowMinimized)
+    for _ in range(3):
+        app_env.main.QApplication.processEvents()
+    assert not win.isVisible()

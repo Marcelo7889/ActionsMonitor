@@ -145,6 +145,32 @@ beta:
   settings_ui: false
 
 # =============================================================================
+# Desktop Integration
+# =============================================================================
+# Read once at startup — restart the app after changing these.
+#
+# theme:
+#   auto   - follow the KDE Plasma colour scheme (Breeze, Breeze Dark, custom
+#            schemes, accent colour), UI font and Breeze icons when running in
+#            a Plasma session; the built-in warm dark theme everywhere else
+#   brand  - always use the built-in warm dark theme
+#   system - always derive the theme from ~/.config/kdeglobals
+# The ACTIONS_MONITOR_THEME environment variable (same values) overrides this.
+#
+# xwayland (Linux only):
+#   auto   - on a KDE Plasma Wayland session, run through XWayland so that
+#            minimising the window hides it to the tray. Native Wayland gives
+#            apps no "you were minimised" signal, so there minimise just goes
+#            to the taskbar (closing still hides to the tray).
+#   true   - use XWayland on any Wayland session
+#   false  - always run as a native Wayland client
+# An explicit QT_QPA_PLATFORM environment variable always wins.
+# =============================================================================
+desktop:
+  theme: auto
+  xwayland: auto
+
+# =============================================================================
 # Workflows to Monitor
 # =============================================================================
 # Paste the URL of the GitHub Actions workflow page below.

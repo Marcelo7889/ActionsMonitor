@@ -39,8 +39,10 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 
 from gh_api import _gh_headers, parse_workflow_url, parse_actor_url
-from widgets import (BG_DARK, BG_FOOTER, BG_ROW, BORDER,
-    FG_FAINT, FG_LINK, FG_MUTED, FG_TEXT, FG_TITLE)
+from widgets import (BG_CHIP, BG_CODE, BG_DARK, BG_FOOTER, BG_HOVER, BG_HOVER_STRONG,
+    BG_INPUT, BG_ROW, BG_SELECTED, BORDER, BORDER_INPUT, BORDER_SUBTLE,
+    FG_DIM, FG_ERROR, FG_FAINT, FG_LINK, FG_LINK_HOVER, FG_MUTED, FG_ON_ACCENT,
+    FG_SUCCESS, FG_TEXT, FG_TITLE, _P)
 from pollers import parse_duration
 
 # Injected by main.configure() — placeholders so the module imports standalone.
@@ -105,36 +107,36 @@ def save_raw_config(data: dict) -> bool:
 # Small styled-widget helpers
 # ---------------------------------------------------------------------------
 _INPUT_CSS = (
-    f"QLineEdit {{ background: #262220; border: 1px solid #3B3734; border-radius: 6px; "
+    f"QLineEdit {{ background: {BG_INPUT}; border: 1px solid {BORDER_INPUT}; border-radius: 6px; "
     f"color: {FG_TEXT}; font-size: 12px; padding: 8px 12px; }} "
     f"QLineEdit:focus {{ border-color: {FG_LINK}; }}")
 _MONO_INPUT_CSS = (
-    f"QLineEdit {{ background: #262220; border: 1px solid #3B3734; border-radius: 6px; "
+    f"QLineEdit {{ background: {BG_INPUT}; border: 1px solid {BORDER_INPUT}; border-radius: 6px; "
     f"color: {FG_TEXT}; font-size: 12px; padding: 8px 12px; "
     f"font-family: Consolas, monospace; }} "
     f"QLineEdit:focus {{ border-color: {FG_LINK}; }}")
 _COMBO_CSS = (
-    f"QComboBox {{ background: #262220; border: 1px solid #3B3734; border-radius: 6px; "
+    f"QComboBox {{ background: {BG_INPUT}; border: 1px solid {BORDER_INPUT}; border-radius: 6px; "
     f"color: {FG_TEXT}; font-size: 12px; padding: 6px 10px; min-width: 90px; }} "
     f"QComboBox QAbstractItemView {{ background: {BG_ROW}; color: {FG_TEXT}; "
-    f"selection-background-color: #4A3728; }}")
+    f"selection-background-color: {BG_SELECTED}; }}")
 _PRIMARY_BTN_CSS = (
-    f"QPushButton {{ background: {FG_LINK}; color: {BG_DARK}; font-size: 12px; "
+    f"QPushButton {{ background: {FG_LINK}; color: {FG_ON_ACCENT}; font-size: 12px; "
     f"font-weight: 600; padding: 7px 16px; border-radius: 6px; border: none; }} "
-    f"QPushButton:hover {{ background: #F59E0B; }} "
-    f"QPushButton:disabled {{ background: #3D3530; color: {FG_FAINT}; }}")
+    f"QPushButton:hover {{ background: {FG_LINK_HOVER}; }} "
+    f"QPushButton:disabled {{ background: {BG_CHIP}; color: {FG_FAINT}; }}")
 _SECONDARY_BTN_CSS = (
-    f"QPushButton {{ background: #33302D; color: {FG_TEXT}; font-size: 12px; "
+    f"QPushButton {{ background: {BG_HOVER_STRONG}; color: {FG_TEXT}; font-size: 12px; "
     f"font-weight: 600; padding: 7px 14px; border-radius: 6px; border: none; }} "
-    f"QPushButton:hover {{ background: #3D3530; color: {FG_LINK}; }}")
-_CARD_CSS = (f"QWidget#card {{ background: {BG_FOOTER}; border: 1px solid #292524; "
+    f"QPushButton:hover {{ background: {BG_CHIP}; color: {FG_LINK}; }}")
+_CARD_CSS = (f"QWidget#card {{ background: {BG_FOOTER}; border: 1px solid {BORDER_SUBTLE}; "
              f"border-radius: 8px; }}")
 
 _MODE_BADGE = {
-    "branch": ("BRANCH", "#33302D", "#A8A29E"),
-    "pr":     ("PR",     "#3D3530", "#FBBF24"),
-    "actor":  ("ACTOR",  "#1C2A3A", "#60A5FA"),
-    "url":    ("URL",    "#302830", "#A78BFA"),
+    "branch": ("BRANCH", *_P["MODE_BRANCH"]),
+    "pr":     ("PR",     *_P["MODE_PR"]),
+    "actor":  ("ACTOR",  *_P["MODE_ACTOR"]),
+    "url":    ("URL",    *_P["MODE_URL"]),
 }
 
 
@@ -327,7 +329,7 @@ class SettingsDialog(QDialog):
         tb.addStretch()
         dot = QLabel()
         dot.setFixedSize(7, 7)
-        dot.setStyleSheet("background: #4ADE80; border-radius: 3px;")
+        dot.setStyleSheet(f"background: {FG_SUCCESS}; border-radius: 3px;")
         tb.addWidget(dot)
         sync = QLabel("Synced with config.yaml · hot-reload on")
         sync.setStyleSheet(f"color: {FG_FAINT}; font-size: 11px;")
@@ -348,7 +350,7 @@ class SettingsDialog(QDialog):
         # Left nav
         nav = QWidget()
         nav.setFixedWidth(172)
-        nav.setStyleSheet(f"border-right: 1px solid #292524;")
+        nav.setStyleSheet(f"border-right: 1px solid {BORDER_SUBTLE};")
         nav_lay = QVBoxLayout(nav)
         nav_lay.setContentsMargins(8, 10, 8, 10)
         nav_lay.setSpacing(2)
@@ -398,7 +400,7 @@ class SettingsDialog(QDialog):
             active = k == key
             lbl.setStyleSheet(
                 "padding: 8px 12px; border-radius: 6px; font-size: 12px; border: none; "
-                + (f"background: #292524; color: {FG_LINK}; font-weight: 600;"
+                + (f"background: {BG_HOVER}; color: {FG_LINK}; font-weight: 600;"
                    if active else f"color: {FG_MUTED}; background: transparent;"))
         self._stack.setCurrentWidget(self._pages[key])
         if key == "workflows":
@@ -444,7 +446,7 @@ class SettingsDialog(QDialog):
 
         tip = QLabel("Tip: you can still edit config.yaml by hand — the app "
                      "hot-reloads it and this list stays in sync.")
-        tip.setStyleSheet(f"color: #57534E; font-size: 11px;")
+        tip.setStyleSheet(f"color: {FG_DIM}; font-size: 11px;")
         tip.setWordWrap(True)
         lay.addWidget(tip)
         return page
@@ -515,7 +517,7 @@ class SettingsDialog(QDialog):
         remove = _link_label("Remove", lambda i=idx: self._remove_workflow(i))
         remove.setStyleSheet(
             f"QLabel {{ color: {FG_FAINT}; font-size: 11px; background: transparent; }} "
-            f"QLabel:hover {{ color: #F87171; text-decoration: underline; }}")
+            f"QLabel:hover {{ color: {FG_ERROR}; text-decoration: underline; }}")
         lay.addWidget(remove)
         return row
 
@@ -645,7 +647,7 @@ class SettingsDialog(QDialog):
             if i < len(self._NOTIF_TYPES) - 1:
                 line = QFrame()
                 line.setFixedHeight(1)
-                line.setStyleSheet("background: #292524; border: none;")
+                line.setStyleSheet(f"background: {BORDER_SUBTLE}; border: none;")
                 card_lay.addWidget(line)
         lay.addWidget(card)
 
@@ -684,7 +686,7 @@ class SettingsDialog(QDialog):
         card2_lay.addLayout(deliver_row)
         note = QLabel("Batching combines near-simultaneous events into one toast. "
                       "Suppression prevents a flood after waking from sleep.")
-        note.setStyleSheet("color: #57534E; font-size: 11px; background: transparent;")
+        note.setStyleSheet(f"color: {FG_DIM}; font-size: 11px; background: transparent;")
         note.setWordWrap(True)
         card2_lay.addWidget(note)
         lay.addWidget(card2)
@@ -783,9 +785,9 @@ class SettingsDialog(QDialog):
     # PR rules page
     # ==================================================================
     _STALE_LEVELS = [
-        ("slightly_stale",   "slightly stale",   "#3D3520", "#EAB308"),
-        ("moderately_stale", "moderately stale", "#3A2A1C", "#F97316"),
-        ("very_stale",       "very stale",       "#3A1C1C", "#EF4444"),
+        ("slightly_stale",   "slightly stale",   *_P["STALE_SLIGHT"]),
+        ("moderately_stale", "moderately stale", *_P["STALE_MODERATE"]),
+        ("very_stale",       "very stale",       *_P["STALE_VERY"]),
     ]
 
     def _build_rules_page(self) -> QWidget:
@@ -806,7 +808,7 @@ class SettingsDialog(QDialog):
         head.setStyleSheet(f"color: {FG_TEXT}; font-size: 12px; font-weight: 600; background: transparent;")
         card_lay.addWidget(head)
         note = QLabel("Time since the PR was last updated. Accepts 30m, 12h, 1d, 2d12h…")
-        note.setStyleSheet("color: #57534E; font-size: 11px; background: transparent;")
+        note.setStyleSheet(f"color: {FG_DIM}; font-size: 11px; background: transparent;")
         note.setWordWrap(True)
         card_lay.addWidget(note)
         self._stale_edits: dict[str, QLineEdit] = {}
@@ -856,12 +858,12 @@ class SettingsDialog(QDialog):
         presets_row = QHBoxLayout()
         presets_row.setSpacing(5)
         presets_lbl = QLabel("Presets:")
-        presets_lbl.setStyleSheet("color: #57534E; font-size: 11px; background: transparent;")
+        presets_lbl.setStyleSheet(f"color: {FG_DIM}; font-size: 11px; background: transparent;")
         presets_row.addWidget(presets_lbl)
         for preset in (r"\[bot\]$", r"(?i)(\[bot\]|-bot$)", r"(?i)bot"):
             chip = QLabel(preset)
             chip.setStyleSheet(
-                f"QLabel {{ background: #33302D; color: {FG_MUTED}; font-size: 11px; "
+                f"QLabel {{ background: {BG_HOVER_STRONG}; color: {FG_MUTED}; font-size: 11px; "
                 f"padding: 3px 8px; border-radius: 4px; font-family: Consolas, monospace; }} "
                 f"QLabel:hover {{ color: {FG_LINK}; }}")
             chip.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -992,11 +994,11 @@ class SettingsDialog(QDialog):
             if "ok" in result:
                 self._token_status.setText("● " + result["ok"])
                 self._token_status.setStyleSheet(
-                    "color: #4ADE80; font-size: 11px; background: transparent;")
+                    f"color: {FG_SUCCESS}; font-size: 11px; background: transparent;")
             else:
                 self._token_status.setText("● " + result["err"])
                 self._token_status.setStyleSheet(
-                    "color: #F87171; font-size: 11px; background: transparent;")
+                    f"color: {FG_ERROR}; font-size: 11px; background: transparent;")
 
         threading.Thread(target=_worker, daemon=True, name="token-test").start()
         QTimer.singleShot(200, _poll)
@@ -1026,7 +1028,7 @@ class SettingsDialog(QDialog):
 
         self._yaml_edit = QPlainTextEdit()
         self._yaml_edit.setStyleSheet(
-            f"QPlainTextEdit {{ background: #171412; border: 1px solid #292524; "
+            f"QPlainTextEdit {{ background: {BG_CODE}; border: 1px solid {BORDER_SUBTLE}; "
             f"border-radius: 8px; color: {FG_MUTED}; font-size: 11px; padding: 10px; }}")
         self._yaml_edit.setFont(_mono_font())
         self._yaml_edit.setMinimumHeight(340)
@@ -1055,13 +1057,13 @@ class SettingsDialog(QDialog):
             yaml.safe_load(text)
         except yaml.YAMLError as exc:
             self._yaml_status.setText(f"Invalid YAML: {exc}")
-            self._yaml_status.setStyleSheet("color: #F87171; font-size: 11px;")
+            self._yaml_status.setStyleSheet(f"color: {FG_ERROR}; font-size: 11px;")
             return
         if CONFIG_FILE:
             CONFIG_FILE.write_text(text, encoding="utf-8")
             self._config_mgr.load()
             self._yaml_status.setText("Saved.")
-            self._yaml_status.setStyleSheet("color: #4ADE80; font-size: 11px;")
+            self._yaml_status.setStyleSheet(f"color: {FG_SUCCESS}; font-size: 11px;")
 
 
 # ---------------------------------------------------------------------------
@@ -1129,7 +1131,7 @@ class WorkflowFormDialog(QDialog):
         seg = QWidget()
         seg.setObjectName("seg")
         seg.setStyleSheet(
-            "QWidget#seg { background: #262220; border: 1px solid #3B3734; border-radius: 6px; }")
+            f"QWidget#seg {{ background: {BG_INPUT}; border: 1px solid {BORDER_INPUT}; border-radius: 6px; }}")
         seg_lay = QHBoxLayout(seg)
         seg_lay.setContentsMargins(3, 3, 3, 3)
         seg_lay.setSpacing(2)
@@ -1144,7 +1146,7 @@ class WorkflowFormDialog(QDialog):
         seg.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         mode_col.addWidget(seg)
         self._mode_hint = QLabel("")
-        self._mode_hint.setStyleSheet("color: #57534E; font-size: 11px;")
+        self._mode_hint.setStyleSheet(f"color: {FG_DIM}; font-size: 11px;")
         self._mode_hint.setWordWrap(True)
         mode_col.addWidget(self._mode_hint)
         lay.addLayout(mode_col)
@@ -1246,14 +1248,14 @@ class WorkflowFormDialog(QDialog):
         preview_head.setSpacing(8)
         preview_head.addWidget(_field_label("config.yaml preview"))
         preview_note = QLabel("— this entry will be written to your file")
-        preview_note.setStyleSheet("color: #57534E; font-size: 11px;")
+        preview_note.setStyleSheet(f"color: {FG_DIM}; font-size: 11px;")
         preview_head.addWidget(preview_note)
         preview_head.addStretch()
         preview_col.addLayout(preview_head)
         self._preview = QPlainTextEdit()
         self._preview.setReadOnly(True)
         self._preview.setStyleSheet(
-            f"QPlainTextEdit {{ background: #171412; border: 1px solid #292524; "
+            f"QPlainTextEdit {{ background: {BG_CODE}; border: 1px solid {BORDER_SUBTLE}; "
             f"border-radius: 6px; color: {FG_MUTED}; font-size: 11px; padding: 8px; }}")
         self._preview.setFont(_mono_font())
         self._preview.setMinimumHeight(150)
@@ -1297,7 +1299,7 @@ class WorkflowFormDialog(QDialog):
             active = key == mode
             lbl.setStyleSheet(
                 "padding: 5px 14px; border-radius: 4px; font-size: 12px; "
-                + (f"background: #3D3530; color: {FG_LINK}; font-weight: 600;"
+                + (f"background: {BG_CHIP}; color: {FG_LINK}; font-weight: 600;"
                    if active else f"color: {FG_MUTED};"))
         hints = {
             "branch": "One fixed row for this workflow on a branch.",
@@ -1317,7 +1319,7 @@ class WorkflowFormDialog(QDialog):
         mode, hint = detect_mode(text)
         ok = mode is not None
         self._detect_dot.setStyleSheet(
-            f"background: {'#4ADE80' if ok else '#F87171'}; border-radius: 3px;")
+            f"background: {FG_SUCCESS if ok else FG_ERROR}; border-radius: 3px;")
         self._detect_lbl.setText(hint)
         if mode == "actor" and self._mode not in ("actor",):
             self._set_mode("actor")

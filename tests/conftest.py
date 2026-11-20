@@ -16,6 +16,10 @@ import sys
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# Deterministic palette regardless of the developer's desktop (a KDE session
+# would otherwise switch to its colour scheme). Override with
+# ACTIONS_MONITOR_THEME=system to render the Plasma theme in screenshots.
+os.environ.setdefault("ACTIONS_MONITOR_THEME", "brand")
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT / "src"))
@@ -31,6 +35,7 @@ def qapp():
     app = QApplication.instance() or QApplication([])
     # Production parity: main() applies the dark stylesheet app-wide.
     import main as m
+    m._apply_desktop_theme(app)  # no-op on the brand theme
     app.setStyleSheet(m.DARK_STYLESHEET)
     yield app
 

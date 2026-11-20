@@ -68,6 +68,8 @@ Grab `ActionsMonitor.zip` (Windows) or `ActionsMonitor-linux.zip` from [GitHub R
 
 > **Note:** On Linux, named notification sounds (`whistle`, `reminder`, etc.) are Windows-only. Use `"default"` for a system sound via paplay/aplay, or provide a path to an `.oga`/`.wav` file.
 
+> **KDE Plasma:** inside a Plasma session the window follows your colour scheme (Breeze, Breeze Dark or a custom scheme), accent colour, UI font and Breeze icons. A single click on the tray icon shows/hides the window; closing or minimising it hides it to the tray. On Plasma Wayland the app runs through XWayland so minimise-to-tray works (Wayland doesn't tell apps they were minimised). Both are configurable under `desktop:` in `config.yaml`.
+
 ## Features
 
 - **Live status** — polls your configured workflows and shows green / orange / red status indicators

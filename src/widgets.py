@@ -33,37 +33,68 @@ from pollers import (
 IS_WINDOWS = platform.system() == "Windows"
 
 # ---------------------------------------------------------------------------
-# Colour palette — warm dark theme
+# Colour palette — brand warm dark theme, or the KDE Plasma colour scheme
+# (resolved once at import by `desktop.py`; see its docstring)
 # ---------------------------------------------------------------------------
-BG_DARK    = "#1C1917"   # stone-900
-BG_ROW     = "#262220"   # card row fill (design v2)
-BG_ROW_ALT = "#262220"   # kept for import compat — rows are uniform cards now
-BG_ROW_HOVER   = "#2C2825"  # card hover
-BG_ROW_SNOOZED = "#221F1D"  # dimmed card for snoozed rows
-BG_FOOTER  = "#232020"   # footer bar
-BORDER     = "#33302D"   # hairlines / separators
-FG_TEXT    = "#E7E5E4"   # stone-200
-FG_TITLE   = "#F5F5F4"   # stone-100 — row titles / headings
-FG_MUTED   = "#A8A29E"   # stone-400
-FG_FAINT   = "#78716C"   # stone-500 — secondary meta text
-FG_LINK    = "#FBBF24"   # amber-400 (primary accent)
-ACCENT     = "#292524"   # stone-800
-UI_FONT    = "Segoe UI" if IS_WINDOWS else "DejaVu Sans"
+import desktop as _desktop
 
-COLOUR = {
-    ST_UNKNOWN:   "#A8A29E",  # warm grey (stone-400)
-    ST_QUEUED:    "#FBBF24",  # amber
-    ST_RUNNING:   "#FBBF24",  # amber
-    ST_SUCCESS:   "#4ADE80",  # warm green
-    ST_FAILURE:   "#F87171",  # warm red
-    ST_CANCELLED: "#A8A29E",  # warm grey
-    ST_SKIPPED:   "#A8A29E",  # warm grey
-}
+_P = _desktop.PALETTE
+THEME_NAME = _desktop.THEME_NAME   # "brand" | "kde"
+
+BG_DARK         = _P["BG_DARK"]          # window / page
+BG_HEADER       = _P["BG_HEADER"]        # header bar
+BG_ROW          = _P["BG_ROW"]           # card row fill (design v2)
+BG_ROW_ALT      = _P["BG_ROW_ALT"]       # kept for import compat — rows are uniform cards now
+BG_ROW_HOVER    = _P["BG_ROW_HOVER"]     # card hover
+BG_ROW_SNOOZED  = _P["BG_ROW_SNOOZED"]   # dimmed card for snoozed rows
+BG_FOOTER       = _P["BG_FOOTER"]        # footer bar
+BG_INPUT        = _P["BG_INPUT"]         # line edits / combos
+BG_CODE         = _P["BG_CODE"]          # YAML editor / preview
+BG_TOOLTIP      = _P["BG_TOOLTIP"]
+BG_HOVER        = _P["BG_HOVER"]         # icon-button hover, selected nav item
+BG_HOVER_STRONG = _P["BG_HOVER_STRONG"]  # snooze-button hover, secondary buttons
+BG_SELECTED     = _P["BG_SELECTED"]      # menu selection, row blink
+BG_CHIP         = _P["BG_CHIP"]          # neutral chip / disabled button
+BORDER          = _P["BORDER"]           # hairlines / separators
+BORDER_SUBTLE   = _P["BORDER_SUBTLE"]
+BORDER_STRONG   = _P["BORDER_STRONG"]    # checkbox outline
+BORDER_INPUT    = _P["BORDER_INPUT"]
+BORDER_POPUP    = _P["BORDER_POPUP"]     # tooltip / menu frame
+FG_TEXT         = _P["FG_TEXT"]
+FG_TITLE        = _P["FG_TITLE"]         # row titles / headings
+FG_MUTED        = _P["FG_MUTED"]
+FG_FAINT        = _P["FG_FAINT"]         # secondary meta text
+FG_DIM          = _P["FG_DIM"]           # hints, snoozed titles
+FG_DIMMER       = _P["FG_DIMMER"]        # snoozed meta text
+FG_LINK         = _P["FG_LINK"]          # primary accent (amber / Plasma accent)
+FG_LINK_HOVER   = _P["FG_LINK_HOVER"]
+FG_ON_ACCENT    = _P["FG_ON_ACCENT"]     # text on an FG_LINK fill
+FG_SUCCESS      = _P["FG_SUCCESS"]
+FG_ERROR        = _P["FG_ERROR"]
+ACCENT          = _P["ACCENT"]           # plain buttons
+ACCENT_DIM      = _P["ACCENT_DIM"]       # accent bar of a snoozed row
+IS_DARK_THEME   = bool(_P["IS_DARK"])
+
+# Badges — (background, foreground)
+BADGE_PREFIX     = _P["BADGE_PREFIX"]
+BADGE_DRAFT      = _P["BADGE_DRAFT"]
+BADGE_CONFLICT   = _P["BADGE_CONFLICT"]
+BADGE_UNRESOLVED = _P["BADGE_UNRESOLVED"]
+BADGE_JIRA       = _P["BADGE_JIRA"]
+BADGE_SNOOZED    = _P["BADGE_SNOOZED"]
+BADGE_DIM        = _P["BADGE_DIM"]       # any badge on a snoozed row
+
+if THEME_NAME == "kde":
+    UI_FONT = _desktop.EXTRAS.get("font_family", "Noto Sans")
+else:
+    UI_FONT = "Segoe UI" if IS_WINDOWS else "DejaVu Sans"
+
+COLOUR = dict(_P["STATUS"])
 
 STATUS_LABEL = {
     ST_UNKNOWN:  "Unknown",
     ST_QUEUED:   "Queued",
-    ST_RUNNING:  "Running\u2026",
+    ST_RUNNING:  "Running…",
     ST_SUCCESS:  "Success",
     ST_FAILURE:  "Failed",
     ST_CANCELLED:"Cancelled",
@@ -72,17 +103,17 @@ STATUS_LABEL = {
 
 # Review status badge config: state → (label, bg_colour, fg_colour)
 _REVIEW_BADGE_CFG = {
-    "approved":          ("APPROVED",          "#1C3A2A", "#4ADE80"),
-    "changes_requested": ("CHANGES REQUESTED", "#3A1C1C", "#F87171"),
-    "commented":         ("IN REVIEW",         "#1C2A3A", "#60A5FA"),
-    "pending":           ("REVIEW PENDING",    "#3D3530", "#FBBF24"),
+    "approved":          ("APPROVED",          *_P["REVIEW_APPROVED"]),
+    "changes_requested": ("CHANGES REQUESTED", *_P["REVIEW_CHANGES"]),
+    "commented":         ("IN REVIEW",         *_P["REVIEW_COMMENTED"]),
+    "pending":           ("REVIEW PENDING",    *_P["REVIEW_PENDING"]),
 }
 
 # Staleness badge config: level → (bg_colour, fg_colour)
 _STALENESS_BADGE_CFG = {
-    "slightly_stale":   ("#3D3520", "#EAB308"),
-    "moderately_stale": ("#3A2A1C", "#F97316"),
-    "very_stale":       ("#3A1C1C", "#EF4444"),
+    "slightly_stale":   _P["STALE_SLIGHT"],
+    "moderately_stale": _P["STALE_MODERATE"],
+    "very_stale":       _P["STALE_VERY"],
 }
 
 
@@ -261,33 +292,33 @@ class WorkflowRow(QWidget):
         badge_layout.setContentsMargins(0, 2, 0, 0)
         badge_layout.setSpacing(4)
 
-        self._prefix_lbl = _make_badge("", "#3D3530", "#FBBF24")
+        self._prefix_lbl = _make_badge("", *BADGE_PREFIX)
         badge_layout.addWidget(self._prefix_lbl)
 
-        self._draft_lbl = _make_badge("DRAFT", "#92400E", "#FEF3C7", bold=True)
+        self._draft_lbl = _make_badge("DRAFT", *BADGE_DRAFT, bold=True)
         badge_layout.addWidget(self._draft_lbl)
 
-        self._conflict_lbl = _make_badge("\u26A0 CONFLICT", "#7F1D1D", "#FEE2E2", bold=True)
+        self._conflict_lbl = _make_badge("\u26A0 CONFLICT", *BADGE_CONFLICT, bold=True)
         self._conflict_lbl.setToolTip("This PR has merge conflicts that must be resolved")
         badge_layout.addWidget(self._conflict_lbl)
 
-        self._unresolved_lbl = _make_badge("", "#4A1D1D", "#FCA5A5", bold=True)
+        self._unresolved_lbl = _make_badge("", *BADGE_UNRESOLVED, bold=True)
         self._unresolved_lbl.setToolTip("Unresolved review threads on this PR")
         badge_layout.addWidget(self._unresolved_lbl)
 
-        self._jira_lbl = _make_badge("", "#302830", "#A78BFA")
+        self._jira_lbl = _make_badge("", *BADGE_JIRA)
         self._jira_lbl.setCursor(Qt.CursorShape.PointingHandCursor)
         self._jira_lbl.mousePressEvent = lambda e: self._open_jira()
         badge_layout.addWidget(self._jira_lbl)
 
-        self._review_lbl = _make_badge("", "#3D3530", "#FBBF24")
+        self._review_lbl = _make_badge("", *_P["REVIEW_PENDING"])
         self._review_lbl.setTextFormat(Qt.RichText)
         badge_layout.addWidget(self._review_lbl)
 
-        self._stale_lbl = _make_badge("", "#3D3520", "#EAB308", bold=True)
+        self._stale_lbl = _make_badge("", *_P["STALE_SLIGHT"], bold=True)
         badge_layout.addWidget(self._stale_lbl)
 
-        self._snooze_lbl = _make_badge("SNOOZED", "#3D3530", "#A8A29E", bold=True)
+        self._snooze_lbl = _make_badge("SNOOZED", *BADGE_SNOOZED, bold=True)
         badge_layout.addWidget(self._snooze_lbl)
 
         badge_layout.addStretch()
@@ -322,7 +353,8 @@ class WorkflowRow(QWidget):
         self._snooze_btn.setFixedSize(24, 24)
         self._snooze_btn.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._snooze_btn.setStyleSheet(
-            "QLabel { border-radius: 6px; } QLabel:hover { background-color: #33302D; }")
+            "QLabel { border-radius: 6px; } "
+            f"QLabel:hover {{ background-color: {BG_HOVER_STRONG}; }}")
         self._snooze_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._snooze_btn.setToolTip("Snooze - pause polling, dim the row, mute notifications")
         self._snooze_btn.mousePressEvent = lambda e: self._toggle_snooze()
@@ -411,11 +443,11 @@ class WorkflowRow(QWidget):
         self._snooze_btn.setToolTip(
             "Unsnooze - resume polling and notifications" if snoozed
             else "Snooze - pause polling, dim the row, mute notifications")
-        dim_text = "#57534E"
-        dim_muted = "#44403C"
+        dim_text = FG_DIM
+        dim_muted = FG_DIMMER
         if snoozed:
             self._bg = BG_ROW_SNOOZED
-            self._set_accent("#3F3B38")
+            self._set_accent(ACCENT_DIM)
             self._info_lbl.setStyleSheet(_link_css(dim_muted, 11))
             self._name_lbl.setStyleSheet(_link_css(dim_text, 13))
             self._poll_lbl.setStyleSheet(f"color: {dim_muted}; font-size: 11px;")
@@ -447,17 +479,17 @@ class WorkflowRow(QWidget):
 
     def _badge_css(self, bg: str, fg: str, bold: bool = False) -> str:
         if self._snoozed:
-            bg, fg = "#2C2825", "#57534E"
+            bg, fg = BADGE_DIM
         weight = "bold" if bold else "normal"
         return (f"background-color: {bg}; color: {fg}; font-size: 10px; "
                 f"font-weight: {weight}; padding: 2px 6px; border-radius: 3px;")
 
     def _restyle_static_badges(self):
-        self._prefix_lbl.setStyleSheet(self._badge_css("#3D3530", "#FBBF24"))
-        self._draft_lbl.setStyleSheet(self._badge_css("#92400E", "#FEF3C7", bold=True))
-        self._conflict_lbl.setStyleSheet(self._badge_css("#7F1D1D", "#FEE2E2", bold=True))
-        self._unresolved_lbl.setStyleSheet(self._badge_css("#4A1D1D", "#FCA5A5", bold=True))
-        self._jira_lbl.setStyleSheet(self._badge_css("#302830", "#A78BFA"))
+        self._prefix_lbl.setStyleSheet(self._badge_css(*BADGE_PREFIX))
+        self._draft_lbl.setStyleSheet(self._badge_css(*BADGE_DRAFT, bold=True))
+        self._conflict_lbl.setStyleSheet(self._badge_css(*BADGE_CONFLICT, bold=True))
+        self._unresolved_lbl.setStyleSheet(self._badge_css(*BADGE_UNRESOLVED, bold=True))
+        self._jira_lbl.setStyleSheet(self._badge_css(*BADGE_JIRA))
 
     def _open_jira(self):
         if self._jira_base_url and self._state.jira_key:
@@ -561,7 +593,7 @@ class WorkflowRow(QWidget):
 
             if s.review_status:
                 text, bg_col, fg_col = _REVIEW_BADGE_CFG.get(
-                    s.review_status, ("REVIEW PENDING", "#3D3530", "#FBBF24"))
+                    s.review_status, ("REVIEW PENDING", *_P["REVIEW_PENDING"]))
                 if s.review_status in ("approved", "changes_requested"):
                     kind = "bot" if s.review_by_bot else "user"
                     b64 = _reviewer_icon_b64(kind, fg_col, 12)
@@ -582,7 +614,7 @@ class WorkflowRow(QWidget):
                 self._review_lbl.setToolTip("")
 
             if s.staleness_level and s.pr_updated_at:
-                bg_col, fg_col = _STALENESS_BADGE_CFG.get(s.staleness_level, ("#3D3520", "#EAB308"))
+                bg_col, fg_col = _STALENESS_BADGE_CFG.get(s.staleness_level, _P["STALE_SLIGHT"])
                 age = _format_age(s.pr_updated_at)
                 self._stale_lbl.setText(f"STALE {age}" if age else "STALE")
                 self._stale_lbl.setStyleSheet(self._badge_css(bg_col, fg_col, bold=True))

@@ -143,19 +143,30 @@ from pollers import (
     ST_UNKNOWN,
 )
 
+import desktop
 from widgets import (
     ACCENT,
     BG_DARK,
     BG_FOOTER,
+    BG_HEADER,
+    BG_HOVER,
     BG_ROW,
     BG_ROW_ALT,
+    BG_SELECTED,
+    BG_TOOLTIP,
     BORDER,
+    BORDER_POPUP,
+    BORDER_STRONG,
+    BORDER_SUBTLE,
     COLOUR,
     FG_FAINT,
     FG_LINK,
+    FG_LINK_HOVER,
     FG_MUTED,
+    FG_ON_ACCENT,
     FG_TEXT,
     FG_TITLE,
+    THEME_NAME,
     UI_FONT,
     WorkflowRow,
     _ClickableLabel,
@@ -1163,7 +1174,7 @@ DARK_STYLESHEET = f"""
     QCheckBox {{ color: {FG_MUTED}; font-size: 11px; spacing: 6px; }}
     QCheckBox::indicator {{
         width: 14px; height: 14px;
-        border: 1px solid #57534E;
+        border: 1px solid {BORDER_STRONG};
         border-radius: 3px;
         background-color: {BG_DARK};
     }}
@@ -1173,9 +1184,11 @@ DARK_STYLESHEET = f"""
         border-color: {FG_LINK};
         image: url({_CHECK_PNG_URL});
     }}
-    QCheckBox::indicator:checked:hover {{ background-color: #F59E0B; border-color: #F59E0B; }}
+    QCheckBox::indicator:checked:hover {{
+        background-color: {FG_LINK_HOVER}; border-color: {FG_LINK_HOVER};
+    }}
     QToolTip {{
-        background-color: #292524; color: {FG_TEXT}; border: 1px solid #44403C;
+        background-color: {BG_TOOLTIP}; color: {FG_TEXT}; border: 1px solid {BORDER_POPUP};
         font-size: 11px; padding: 4px 6px;
     }}
     QPushButton {{
@@ -1185,12 +1198,85 @@ DARK_STYLESHEET = f"""
     QPushButton:hover {{ background-color: {BG_ROW}; }}
     QPushButton:disabled {{ color: {FG_MUTED}; }}
     QMenu {{
-        background-color: {BG_ROW}; color: {FG_TEXT}; border: 1px solid #44403C;
+        background-color: {BG_ROW}; color: {FG_TEXT}; border: 1px solid {BORDER_POPUP};
         font-size: 12px; padding: 4px 0;
     }}
     QMenu::item {{ padding: 4px 20px; }}
-    QMenu::item:selected {{ background-color: #4A3728; }}
+    QMenu::item:selected {{ background-color: {BG_SELECTED}; }}
 """
+
+
+# ---------------------------------------------------------------------------
+# Desktop theme helpers (KDE Plasma integration — no-ops on the brand theme)
+# ---------------------------------------------------------------------------
+def _apply_desktop_theme(app: QApplication) -> None:
+    """Match Qt's palette, font and icon theme to the Plasma session.
+
+    PyInstaller / pip builds of Qt can't load Plasma's own platform-theme
+    plugin (binary-incompatible), so the colour scheme read by `desktop.py`
+    is pushed in by hand. Fusion + this palette is what un-styled widgets
+    (message boxes, file dialogs, scroll bars) fall back to."""
+    if THEME_NAME != "kde":
+        return
+    from PySide6.QtGui import QPalette
+    p = desktop.PALETTE
+    extras = desktop.EXTRAS
+    app.setStyle("Fusion")
+    pal = QPalette()
+    R = QPalette.ColorRole
+    for role, key in (
+        (R.Window, "BG_ROW"), (R.WindowText, "FG_TEXT"),
+        (R.Base, "BG_INPUT"), (R.AlternateBase, "BG_ROW_HOVER"),
+        (R.Text, "FG_TITLE"), (R.Button, "ACCENT"), (R.ButtonText, "FG_TEXT"),
+        (R.Highlight, "FG_LINK"), (R.HighlightedText, "FG_ON_ACCENT"),
+        (R.ToolTipBase, "BG_TOOLTIP"), (R.ToolTipText, "FG_TEXT"),
+        (R.Link, "FG_LINK"), (R.LinkVisited, "FG_LINK"),
+        (R.PlaceholderText, "FG_FAINT"), (R.BrightText, "FG_ERROR"),
+        (R.Mid, "BORDER"), (R.Dark, "BORDER_STRONG"), (R.Light, "BG_ROW_HOVER"),
+    ):
+        pal.setColor(role, QColor(p[key]))
+    for role in (R.WindowText, R.Text, R.ButtonText):
+        pal.setColor(QPalette.ColorGroup.Disabled, role, QColor(p["FG_DIM"]))
+    app.setPalette(pal)
+    family = extras.get("font_family")
+    if family:
+        app.setFont(QFont(family, round(extras.get("font_size", 10))))
+    theme = extras.get("icon_theme")
+    if theme:
+        QIcon.setThemeName(theme)
+
+
+def _theme_icon(name: str) -> QIcon:
+    """Freedesktop icon from the Plasma icon theme; empty icon on brand / when missing."""
+    if THEME_NAME != "kde":
+        return QIcon()
+    return QIcon.fromTheme(name)
+
+
+def _themed_pixmap(names: tuple[str, ...], fallback) -> QPixmap:
+    """36px pixmap for a header button: the first available Plasma theme icon,
+    else the PIL-drawn glyph from *fallback()*."""
+    if THEME_NAME == "kde":
+        for name in names:
+            if QIcon.hasThemeIcon(name):
+                pm = QIcon.fromTheme(name).pixmap(QSize(36, 36))
+                if not pm.isNull():
+                    return pm
+    return _pil_to_qpixmap(fallback())
+
+
+def _tint_light_pixels(img: "Image.Image", colour: str) -> "Image.Image":
+    """Recolour the near-white parts of an RGBA image (the WizX20 wordmark)
+    so it stays visible on light colour schemes; keeps alpha and accents."""
+    r0, g0, b0 = (int(colour.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+    img = img.convert("RGBA")
+    px = img.load()
+    for y in range(img.height):
+        for x in range(img.width):
+            r, g, b, a = px[x, y]
+            if a and min(r, g, b) > 170 and max(r, g, b) - min(r, g, b) < 40:
+                px[x, y] = (r0, g0, b0, a)
+    return img
 
 
 # ---------------------------------------------------------------------------
@@ -1279,6 +1365,10 @@ class MainWindow(QMainWindow):
         # Header — 52px, hairline bottom border (design v2)
         header = QWidget()
         header.setFixedHeight(52)
+        if BG_HEADER != BG_DARK:
+            header.setObjectName("header")
+            header.setStyleSheet(
+                f"QWidget#header, QWidget#header QLabel {{ background-color: {BG_HEADER}; }}")
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(16, 0, 10, 0)
         header_layout.setSpacing(10)
@@ -1288,6 +1378,8 @@ class MainWindow(QMainWindow):
         logo_img = Image.open(io.BytesIO(logo_data))
         scale = 30 / logo_img.height
         logo_img = logo_img.resize((round(logo_img.width * scale), 30), Image.LANCZOS)
+        if desktop.PALETTE.get("LOGO_TINT"):
+            logo_img = _tint_light_pixels(logo_img, desktop.PALETTE["LOGO_TINT"])
         logo_lbl = _ClickableLabel(url_fn=lambda: "https://github.com/WizX20")
         logo_lbl.setPixmap(_pil_to_qpixmap(logo_img))
         logo_lbl.setToolTip("github.com/WizX20")
@@ -1309,7 +1401,7 @@ class MainWindow(QMainWindow):
             btn.setToolTip(tooltip)
             btn.setStyleSheet(
                 "QLabel { background: transparent; border-radius: 6px; } "
-                "QLabel:hover { background: #292524; }")
+                f"QLabel:hover {{ background: {BG_HOVER}; }}")
             btn.mousePressEvent = lambda e: handler()
             return btn
 
@@ -1317,21 +1409,22 @@ class MainWindow(QMainWindow):
         btn_row.setSpacing(2)
 
         help_btn = _mk_icon_btn(
-            _pil_to_qpixmap(_make_help_icon(36)),
+            _themed_pixmap(("help-contents", "help-about"), lambda: _make_help_icon(36)),
             "Open README on GitHub",
             lambda: webbrowser.open(f"{UpdateChecker.REPO_URL}/blob/main/README.md"),
         )
         btn_row.addWidget(help_btn)
 
         update_btn = _mk_icon_btn(
-            _pil_to_qpixmap(_make_update_icon(36)),
+            _themed_pixmap(("system-software-update", "update-none"),
+                           lambda: _make_update_icon(36)),
             "Check for updates",
             lambda: self._check_for_updates(manual=True),
         )
         btn_row.addWidget(update_btn)
 
         refresh_btn = _mk_icon_btn(
-            _pil_to_qpixmap(_make_refresh_icon(36)),
+            _themed_pixmap(("view-refresh",), lambda: _make_refresh_icon(36)),
             "Refresh all workflows",
             self._refresh_all,
         )
@@ -1348,7 +1441,8 @@ class MainWindow(QMainWindow):
         btn_row.addLayout(div_wrap)
 
         self._settings_btn = _mk_icon_btn(
-            _pil_to_qpixmap(_make_settings_icon(36)),
+            _themed_pixmap(("configure", "settings-configure"),
+                           lambda: _make_settings_icon(36)),
             "Settings",
             self._open_settings,
         )
@@ -1384,7 +1478,7 @@ class MainWindow(QMainWindow):
 
         summary_sep = QFrame()
         summary_sep.setFixedHeight(1)
-        summary_sep.setStyleSheet("background-color: #292524;")
+        summary_sep.setStyleSheet(f"background-color: {BORDER_SUBTLE};")
         main_layout.addWidget(summary_sep)
 
         # Scrollable list
@@ -1517,17 +1611,33 @@ class MainWindow(QMainWindow):
     # System tray
     # ------------------------------------------------------------------
     def _setup_tray(self):
+        # Without a tray host (e.g. GNOME without the AppIndicator extension)
+        # hiding the window would leave no way back — keep the plain
+        # minimise / quit behaviour instead.
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            print("[Tray] No system tray available - close quits, minimise stays in the taskbar")
+            self._tray = None
+            return
         try:
             # Render at 32 so the simplified chevron path renders crisply when
-            # Windows scales down to 16/24px in the tray.
-            self._tray_icons = {
-                s: QIcon(_pil_to_qpixmap(_make_icon_image(c, 32))) for s, c in COLOUR.items()
-            }
+            # Windows scales down to 16/24px in the tray. Plasma's tray takes
+            # the larger sizes too, so offer 64 for HiDPI panels.
+            self._tray_icons = {}
+            for s, c in COLOUR.items():
+                icon = QIcon()
+                for px in (32, 64):
+                    icon.addPixmap(_pil_to_qpixmap(_make_icon_image(c, px)))
+                self._tray_icons[s] = icon
             self._tray = QSystemTrayIcon(self._tray_icons[ST_UNKNOWN], self)
-            tray_menu = QMenu()
-            tray_menu.addAction("Show", self._show_window)
+            tray_menu = QMenu(self)
+            self._tray_toggle_action = tray_menu.addAction("Show", self._toggle_window)
+            if IS_LINUX:
+                tray_menu.addAction(
+                    _theme_icon("view-refresh"), "Refresh all", self._refresh_all)
             tray_menu.addSeparator()
-            tray_menu.addAction("Close", self._quit)
+            tray_menu.addAction(_theme_icon("application-exit"),
+                                "Quit" if IS_LINUX else "Close", self._quit)
+            tray_menu.aboutToShow.connect(self._sync_tray_menu)
             self._tray.setContextMenu(tray_menu)
             self._tray.activated.connect(self._on_tray_activated)
             self._tray.setToolTip(APP_NAME)
@@ -1536,8 +1646,29 @@ class MainWindow(QMainWindow):
             print(f"[Tray] Failed to start tray icon: {exc}")
             self._tray = None
 
+    def _window_shown(self) -> bool:
+        return self.isVisible() and not self.isMinimized()
+
+    def _sync_tray_menu(self):
+        shown = self._window_shown()
+        self._tray_toggle_action.setText("Hide" if shown else "Show")
+        self._tray_toggle_action.setIcon(
+            _theme_icon("view-hidden" if shown else "view-visible"))
+
+    def _toggle_window(self):
+        if self._window_shown():
+            self._hide_window()
+        else:
+            self._show_window()
+
     def _on_tray_activated(self, reason):
-        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+        Reason = QSystemTrayIcon.ActivationReason
+        if IS_LINUX and reason == Reason.Trigger:
+            # StatusNotifierItem hosts (KDE Plasma, AppIndicator) report a
+            # single left click as Trigger and never send DoubleClick —
+            # toggle like other Plasma tray apps do.
+            self._toggle_window()
+        elif reason == Reason.DoubleClick:
             self._show_window()
 
     def _update_tray(self):
@@ -1960,9 +2091,9 @@ class MainWindow(QMainWindow):
 
         add_btn = QLabel("Add a workflow" if self._settings_enabled() else "Open config.yaml")
         add_btn.setStyleSheet(
-            f"QLabel {{ background-color: {FG_LINK}; color: {BG_DARK}; font-size: 12px; "
+            f"QLabel {{ background-color: {FG_LINK}; color: {FG_ON_ACCENT}; font-size: 12px; "
             f"font-weight: 600; padding: 7px 16px; border-radius: 6px; }} "
-            f"QLabel:hover {{ background-color: #F59E0B; }}")
+            f"QLabel:hover {{ background-color: {FG_LINK_HOVER}; }}")
         add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         add_btn.mousePressEvent = lambda e: self._open_settings()
         wrap = QHBoxLayout()
@@ -2411,7 +2542,7 @@ class MainWindow(QMainWindow):
             if row:
                 self._blink_row(row)
 
-    _BLINK_COLOR = "#4A3728"
+    _BLINK_COLOR = BG_SELECTED
     _BLINK_STEPS = 6
     _BLINK_MS = 150
 
@@ -2476,8 +2607,23 @@ def main():
         _ensure_focus_vbs()
         StartupManager.heal()
 
+    if IS_LINUX and desktop.wants_xwayland():
+        # Plasma Wayland: KWin minimises native Wayland windows without telling
+        # the client, so minimise-to-tray can't fire. XWayland reports it as a
+        # regular WindowMinimized state change. "wayland" stays as fallback in
+        # case the xcb plugin can't load. Opt out with `desktop.xwayland: false`
+        # or by setting QT_QPA_PLATFORM yourself.
+        os.environ["QT_QPA_PLATFORM"] = "xcb;wayland"
+
     app = QApplication(sys.argv)
+    if IS_LINUX:
+        # Names the StatusNotifierItem in Plasma's "System Tray Settings" and
+        # the X11 WM_CLASS (instead of "python3" / "main.py").
+        app.setApplicationName("ActionsMonitor")
+    # The window lives in the tray; only _quit() / an explicit close ends the app.
+    app.setQuitOnLastWindowClosed(False)
     _generate_check_glyph(_CHECK_PNG)
+    _apply_desktop_theme(app)
     app.setStyleSheet(DARK_STYLESHEET)
 
     # Warn about missing Linux sound tools
