@@ -231,3 +231,42 @@ def test_close_and_minimise_hide_to_tray(app_env, monkeypatch):
     for _ in range(3):
         app_env.main.QApplication.processEvents()
     assert not win.isVisible()
+
+
+# ---------------------------------------------------------------------------
+# Child-process environment (frozen Linux builds)
+# ---------------------------------------------------------------------------
+def test_frozen_linux_child_env_is_restored(app_env, monkeypatch):
+    import sys
+    m = app_env.main
+    monkeypatch.setattr(m, "IS_LINUX", True)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/opt/am/_internal")
+    monkeypatch.delenv("LD_LIBRARY_PATH_ORIG", raising=False)
+    monkeypatch.setenv("QT_PLUGIN_PATH", "/opt/am/_internal/PySide6/Qt/plugins")
+    monkeypatch.setenv("QML2_IMPORT_PATH", "/opt/am/_internal/PySide6/Qt/qml")
+    monkeypatch.setenv("QT_QPA_PLATFORM", "xcb;wayland")
+    m._restore_child_environment(forced_qpa=True)
+    for var in ("LD_LIBRARY_PATH", "QT_PLUGIN_PATH", "QML2_IMPORT_PATH", "QT_QPA_PLATFORM"):
+        assert var not in m.os.environ, var
+
+
+def test_frozen_linux_keeps_users_own_library_path(app_env, monkeypatch):
+    import sys
+    m = app_env.main
+    monkeypatch.setattr(m, "IS_LINUX", True)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/opt/am/_internal:/home/u/lib")
+    monkeypatch.setenv("LD_LIBRARY_PATH_ORIG", "/home/u/lib")
+    m._restore_child_environment(forced_qpa=False)
+    assert m.os.environ["LD_LIBRARY_PATH"] == "/home/u/lib"
+    assert "LD_LIBRARY_PATH_ORIG" not in m.os.environ
+
+
+def test_source_run_leaves_env_alone(app_env, monkeypatch):
+    m = app_env.main
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    monkeypatch.setenv("QT_PLUGIN_PATH", "/somewhere")
+    m._restore_child_environment(forced_qpa=False)  # not frozen, user's QPA
+    assert m.os.environ["QT_QPA_PLATFORM"] == "offscreen"
+    assert m.os.environ["QT_PLUGIN_PATH"] == "/somewhere"

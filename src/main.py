@@ -2575,6 +2575,33 @@ class MainWindow(QMainWindow):
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+def _restore_child_environment(forced_qpa: bool) -> None:
+    """Keep this process's private environment out of the programs it launches
+    (xdg-open → kde-open / the editor for "Open config", the browser for links,
+    sound players).
+
+    A frozen Linux build runs with ``LD_LIBRARY_PATH`` pointing at
+    ``_internal/`` and PyInstaller's PySide6 hook sets ``QT_PLUGIN_PATH`` /
+    ``QML2_IMPORT_PATH`` to the bundled plugins. Inherited by ``kde-open`` or
+    Kate, the bundled Qt shadows the system one and they die on a version
+    mismatch (``Qt_6.12 not found``), so "Open config" silently did nothing.
+
+    Call once QApplication exists: the dynamic loader reads LD_LIBRARY_PATH
+    only at process start and Qt has resolved its plugin paths by then, so
+    this process is unaffected."""
+    if forced_qpa:
+        os.environ.pop("QT_QPA_PLATFORM", None)  # ours, not the user's
+    if not (IS_LINUX and getattr(sys, "frozen", False)):
+        return
+    original = os.environ.pop("LD_LIBRARY_PATH_ORIG", None)  # saved by the bootloader
+    if original:
+        os.environ["LD_LIBRARY_PATH"] = original
+    else:
+        os.environ.pop("LD_LIBRARY_PATH", None)
+    for var in ("QT_PLUGIN_PATH", "QML2_IMPORT_PATH"):
+        os.environ.pop(var, None)
+
+
 def main():
     if getattr(sys, "frozen", False):
         exe = Path(sys.executable)
@@ -2607,7 +2634,8 @@ def main():
         _ensure_focus_vbs()
         StartupManager.heal()
 
-    if IS_LINUX and desktop.wants_xwayland():
+    forced_qpa = IS_LINUX and desktop.wants_xwayland()
+    if forced_qpa:
         # Plasma Wayland: KWin minimises native Wayland windows without telling
         # the client, so minimise-to-tray can't fire. XWayland reports it as a
         # regular WindowMinimized state change. "wayland" stays as fallback in
@@ -2616,6 +2644,7 @@ def main():
         os.environ["QT_QPA_PLATFORM"] = "xcb;wayland"
 
     app = QApplication(sys.argv)
+    _restore_child_environment(forced_qpa)
     if IS_LINUX:
         # Names the StatusNotifierItem in Plasma's "System Tray Settings" and
         # the X11 WM_CLASS (instead of "python3" / "main.py").
