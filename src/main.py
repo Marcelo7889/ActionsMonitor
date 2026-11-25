@@ -88,6 +88,7 @@ from update import (
 )
 
 import gh_api
+from discovery import RepositoryDiscovery, append_workflows, result_status
 from gh_api import (
     _gh_headers,
     parse_workflow_url,
@@ -879,6 +880,7 @@ notifications.configure(
 # ---------------------------------------------------------------------------
 DEFAULT_CONFIG: dict = {
     "github_token": "",
+    "autodiscovery": {"enabled": False, "interval": "5m", "polling_rate": 60},
     "bot_pattern": r"\[bot\]$",
     "notifications": {
         "batch_window": 1,
@@ -1287,6 +1289,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._config_mgr = config_mgr
         self._event_queue = event_queue
+        self._discovery_queue = queue.Queue()
+        self._discovery = RepositoryDiscovery(config_mgr.get(), self._discovery_queue)
         self._pollers: dict[int, WorkflowPoller] = {}
         self._states: dict[tuple[int, Optional[str]], WorkflowState] = {}
         self._rows: dict[tuple[int, Optional[str]], WorkflowRow] = {}
@@ -1351,6 +1355,7 @@ class MainWindow(QMainWindow):
         self._config_timer = QTimer(self)
         self._config_timer.timeout.connect(self._watch_config)
         self._config_timer.start(5000)
+        self._discovery.start()
 
     # ------------------------------------------------------------------
     # UI construction
@@ -1430,8 +1435,7 @@ class MainWindow(QMainWindow):
         )
         btn_row.addWidget(refresh_btn)
 
-        # Divider + settings — the settings button only shows with the
-        # `beta.settings_ui` flag on.
+        # The gear opens discovery settings, or the full settings UI in beta.
         self._header_divider = QFrame()
         self._header_divider.setFixedSize(1, 18)
         self._header_divider.setStyleSheet(f"background-color: {BORDER};")
@@ -1559,21 +1563,24 @@ class MainWindow(QMainWindow):
     def _apply_beta_flags(self):
         """Show/hide beta-gated UI. Safe to call again after config reloads."""
         enabled = self._settings_enabled()
-        self._settings_btn.setVisible(enabled)
-        self._header_divider.setVisible(enabled)
+        # Discovery is available without opting into the full beta settings UI.
+        self._settings_btn.setVisible(True)
+        self._settings_btn.setToolTip("Settings" if enabled else "Descoberta automática")
+        self._header_divider.setVisible(True)
         self._footer_settings_lbl.setVisible(enabled)
         self._footer_config_lbl.setVisible(not enabled)
 
     def _open_settings(self):
         if not self._settings_enabled():
-            ConfigManager.open_in_editor()
+            from settings_ui import DiscoverySettingsDialog
+            DiscoverySettingsDialog(self._config_mgr, self._discovery, parent=self).exec()
             return
         try:
             from settings_ui import SettingsDialog
         except ImportError:
             ConfigManager.open_in_editor()
             return
-        SettingsDialog(self._config_mgr, parent=self).exec()
+        SettingsDialog(self._config_mgr, parent=self, discovery=self._discovery).exec()
 
     # ------------------------------------------------------------------
     # Summary strip
@@ -2135,6 +2142,7 @@ class MainWindow(QMainWindow):
 
     def _start_pollers(self):
         cfg = self._config_mgr.get()
+        self._active_config = cfg
         notif_cfg = cfg.get("notifications", {})
         NOTIF.set_batch_window(float(notif_cfg.get("batch_window", 1)))
         NOTIF.set_duration(str(notif_cfg.get("duration", "short")))
@@ -2240,6 +2248,8 @@ class MainWindow(QMainWindow):
         self._pollers.clear()
 
     def _refresh_all(self):
+        self._discovery.configure(self._config_mgr.get())
+        self._discovery.trigger_poll()
         # Stagger wakes so N pollers don't fire a synchronized request burst.
         for i, p in enumerate(self._pollers.values()):
             QTimer.singleShot(i * 75, p.trigger_poll)
@@ -2285,6 +2295,7 @@ class MainWindow(QMainWindow):
     # Queue drain
     # ------------------------------------------------------------------
     def _drain_queue(self):
+        self._drain_discovery()
         try:
             while True:
                 event: StatusEvent = self._event_queue.get_nowait()
@@ -2292,6 +2303,29 @@ class MainWindow(QMainWindow):
         except queue.Empty:
             pass
         self._check_focus_signal()
+
+    def _drain_discovery(self):
+        while True:
+            try:
+                result = self._discovery_queue.get_nowait()
+            except queue.Empty:
+                return
+            # Account/opt-in may have changed on disk since this worker started.
+            self._watch_config()
+            if not self._discovery.is_current(result):
+                continue
+            added = []
+            if not result.error:
+                try:
+                    added = append_workflows(CONFIG_FILE, result.entries, self._discovery.options)
+                except Exception as exc:
+                    # Never include YAML fragments or credential values in logs/status.
+                    print(f"[Discovery] Config save: {type(exc).__name__}")
+                    result.error = "Não foi possível salvar os workflows. Nova tentativa no próximo ciclo."
+            self._discovery.set_status(result, result_status(result, len(added)))
+            if added:
+                self._config_mgr.load()
+                self._reload_pollers()
 
     def _apply_event(self, event: StatusEvent):
         # Stale event from a poller generation that no longer exists (config
@@ -2399,8 +2433,11 @@ class MainWindow(QMainWindow):
     # Config hot-reload
     # ------------------------------------------------------------------
     def _watch_config(self):
-        changed = self._config_mgr.load()
-        if changed:
+        self._config_mgr.load()
+        # Settings writes may already have loaded the new snapshot. Comparing
+        # identities also catches those changes instead of consuming their mtime.
+        self._discovery.configure(self._config_mgr.get())
+        if self._config_mgr.get() is not self._active_config:
             self._reload_pollers()
 
     def _reload_pollers(self):
@@ -2560,6 +2597,7 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(self._BLINK_MS, lambda: self._blink_row(row, remaining - 1))
 
     def _quit(self):
+        self._discovery.stop()
         self._save_window_state()
         self._stop_all_pollers()
         if self._tray:

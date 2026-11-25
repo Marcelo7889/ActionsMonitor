@@ -1,0 +1,11 @@
+[Unit]
+Description=Descobre novos workflows para o Actions Monitor a cada cinco minutos
+
+[Timer]
+OnStartupSec=30s
+OnUnitInactiveSec=5min
+AccuracySec=15s
+Unit=actionsmonitor-sync.service
+
+[Install]
+WantedBy=timers.target

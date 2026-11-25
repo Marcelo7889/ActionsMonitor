@@ -223,3 +223,33 @@ Running from source does not auto-update — use `git pull` manually.
 ## Contributing
 
 Bug reports, feature ideas, and pull requests welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) to get started. Running from source, building binaries, and the release pipeline are documented in [DEVGUIDE.md](DEVGUIDE.md). All participants are expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Descoberta automática de repositórios
+
+A engrenagem abre **Descoberta automática**, disponível no Windows e no Linux.
+Ative **Adicionar repositórios automaticamente** para buscar os workflows ativos
+na conta identificada pelo token do GitHub. Na tela completa de configurações
+beta, a mesma opção fica em **GitHub account**.
+
+A opção começa desativada. Ao ativar, o aplicativo busca imediatamente e repete
+por padrão a cada cinco minutos; o intervalo pode ser alterado e **Buscar agora**
+antecipa uma busca. A descoberta funciona enquanto o aplicativo está aberto,
+inclusive na bandeja. Não exige serviços externos ou um nome de usuário fixo.
+
+Também encontra workflows adicionados a projetos existentes. Projetos sem
+workflows entram quando houver um workflow ativo. Repositórios arquivados ou
+desabilitados são ignorados. O token precisa acessar os repositórios desejados
+(e ter leitura de Actions para os privados). A tela mostra a última busca e
+problemas de acesso ou conexão.
+
+Os workflows são persistidos sem duplicar entradas nem substituir preferências.
+Desativar interrompe a descoberta; os cadastros existentes continuam monitorados.
+Se um workflow ativo for removido manualmente, poderá voltar na próxima busca:
+desative a opção antes de remover cadastros que não quiser redescobrir.
+As configurações avançadas ficam em `autodiscovery` no
+[modelo de configuração](config.template.yaml).
+
+A [antiga sincronização externa pessoal no Linux](README-autodiscovery.md)
+é independente desta opção. Ao migrar uma instalação que usa o timer
+`actionsmonitor-sync.timer`, desative esse timer e habilite a descoberta no
+aplicativo, para que haja apenas uma rotina de inclusão.

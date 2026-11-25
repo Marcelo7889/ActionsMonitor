@@ -61,6 +61,7 @@ def app_env(qapp, tmp_path, monkeypatch):
     import main as m
     import pollers
     import settings_ui
+    import discovery
 
     monkeypatch.setattr(m, "CONFIG_FILE", tmp_path / "config.yaml")
     monkeypatch.setattr(m, "STATE_FILE", tmp_path / "state.json")
@@ -70,6 +71,7 @@ def app_env(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(settings_ui, "CONFIG_FILE", tmp_path / "config.yaml")
     # Keep poller threads dormant — tests drive the queue directly.
     monkeypatch.setattr(pollers.WorkflowPoller, "start", lambda self: None)
+    monkeypatch.setattr(discovery.RepositoryDiscovery, "start", lambda self: None)
 
     windows: list = []
 
@@ -102,6 +104,7 @@ def app_env(qapp, tmp_path, monkeypatch):
     for win in windows:
         try:
             win._stop_all_pollers()
+            win._discovery.stop()
             if win._tray:
                 win._tray.hide()
             win.close()

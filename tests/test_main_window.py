@@ -106,7 +106,8 @@ def test_error_state_renders(app_env):
 
 def test_beta_gating_off_by_default(app_env):
     win = app_env.make_window(DEMO_CONFIG)
-    assert not win._settings_btn.isVisible()
+    assert win._settings_btn.isVisible()
+    assert win._settings_btn.toolTip() == "Descoberta automática"
     assert not win._footer_settings_lbl.isVisible()
     assert win._footer_config_lbl.isVisible()
 
@@ -127,12 +128,13 @@ def test_beta_env_override(app_env, monkeypatch):
 
 def test_beta_gating_follows_config_reload(app_env):
     win = app_env.make_window(DEMO_CONFIG)
-    assert not win._settings_btn.isVisible()
+    assert win._settings_btn.toolTip() == "Descoberta automática"
     app_env.config_path.write_text(
         "beta:\n  settings_ui: true\n" + DEMO_CONFIG, encoding="utf-8")
     win._config_mgr._mtime = 0  # force mtime-diff so load() reports a change
     win._watch_config()
     assert win._settings_btn.isVisible()
+    assert win._settings_btn.toolTip() == "Settings"
 
 
 # ---------------------------------------------------------------------------

@@ -44,6 +44,7 @@ from widgets import (BG_CHIP, BG_CODE, BG_DARK, BG_FOOTER, BG_HOVER, BG_HOVER_ST
     FG_DIM, FG_ERROR, FG_FAINT, FG_LINK, FG_LINK_HOVER, FG_MUTED, FG_ON_ACCENT,
     FG_SUCCESS, FG_TEXT, FG_TITLE, _P)
 from pollers import parse_duration
+from discovery import discovery_options
 
 # Injected by main.configure() — placeholders so the module imports standalone.
 CONFIG_FILE: Optional[Path] = None
@@ -294,6 +295,137 @@ def _entry_summary(entry: dict) -> str:
 # ---------------------------------------------------------------------------
 # Settings dialog
 # ---------------------------------------------------------------------------
+class DiscoverySettingsWidget(QWidget):
+    """Shared by the standalone discovery dialog and GitHub account settings."""
+    def __init__(self, config_mgr, discovery=None, parent=None):
+        super().__init__(parent)
+        self._config_mgr = config_mgr
+        self._discovery = discovery
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+        card, card_lay = _card()
+        title = QLabel("Descoberta automática")
+        title.setStyleSheet(f"color: {FG_TEXT}; font-size: 12px; font-weight: 600;")
+        card_lay.addWidget(title)
+        description = QLabel(
+            "Adiciona os workflows ativos dos repositórios da conta identificada pelo token do GitHub, "
+            "incluindo novos projetos. A busca acontece enquanto o aplicativo está aberto, "
+            "mesmo minimizado na bandeja.")
+        description.setWordWrap(True)
+        description.setStyleSheet(f"color: {FG_MUTED}; font-size: 11px;")
+        card_lay.addWidget(description)
+        self._enabled_cb = QCheckBox("Adicionar repositórios automaticamente")
+        self._enabled_cb.setStyleSheet("background: transparent;")
+        card_lay.addWidget(self._enabled_cb)
+        row = QHBoxLayout()
+        row.addWidget(_field_label("Verificar novos repositórios a cada"))
+        self._interval_combo = QComboBox()
+        self._interval_combo.setStyleSheet(_COMBO_CSS)
+        for label, value in (("1 minuto", "1m"), ("5 minutos", "5m"),
+                             ("15 minutos", "15m"), ("30 minutos", "30m")):
+            self._interval_combo.addItem(label, value)
+        row.addWidget(self._interval_combo)
+        row.addStretch()
+        card_lay.addLayout(row)
+        self._scan_btn = QPushButton("Buscar agora")
+        self._scan_btn.setStyleSheet(_SECONDARY_BTN_CSS)
+        self._scan_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._scan_btn.clicked.connect(self._scan_now)
+        card_lay.addWidget(self._scan_btn, 0, Qt.AlignmentFlag.AlignLeft)
+        self._status_lbl = QLabel()
+        self._status_lbl.setWordWrap(True)
+        self._status_lbl.setTextFormat(Qt.TextFormat.PlainText)
+        self._status_lbl.setStyleSheet(f"color: {FG_FAINT}; font-size: 11px;")
+        card_lay.addWidget(self._status_lbl)
+        note = QLabel(
+            "Preserva os cadastros e preferências existentes. Projetos sem workflows serão adicionados "
+            "quando tiverem um workflow ativo. A busca usa o acesso permitido pelo token configurado.")
+        note.setWordWrap(True)
+        note.setStyleSheet(f"color: {FG_FAINT}; font-size: 11px;")
+        card_lay.addWidget(note)
+        layout.addWidget(card)
+        self._sync_controls()
+        self._enabled_cb.toggled.connect(self._save_options)
+        self._interval_combo.currentIndexChanged.connect(self._save_options)
+        self._status_timer = QTimer(self)
+        self._status_timer.timeout.connect(self._sync_controls)
+        self._status_timer.start(1000)
+
+    def _sync_controls(self):
+        options = discovery_options(self._config_mgr.get())
+        self._enabled_cb.blockSignals(True)
+        self._interval_combo.blockSignals(True)
+        self._enabled_cb.setChecked(options.enabled)
+        index = next((i for i in range(self._interval_combo.count())
+                      if parse_duration(self._interval_combo.itemData(i)) == options.interval), -1)
+        if index < 0:
+            self._interval_combo.addItem(f"{options.interval} segundos", options.interval)
+            index = self._interval_combo.count() - 1
+        self._interval_combo.setCurrentIndex(index)
+        self._interval_combo.setEnabled(options.enabled)
+        self._enabled_cb.blockSignals(False)
+        self._interval_combo.blockSignals(False)
+        self._scan_btn.setEnabled(bool(options.enabled and options.token and self._discovery))
+        if not options.enabled:
+            text = "Desativada. Os workflows já cadastrados continuam sendo monitorados."
+        elif not options.token:
+            text = "Configure um token do GitHub para habilitar a busca."
+        elif self._discovery:
+            text = self._discovery.status
+        else:
+            text = "A busca começa automaticamente no aplicativo."
+        self._status_lbl.setText(text)
+
+    def _save_options(self, *_):
+        try:
+            # load_raw_config's permissive fallback must not overwrite a broken file.
+            if CONFIG_FILE and CONFIG_FILE.exists():
+                parsed = yaml.safe_load(CONFIG_FILE.read_text(encoding="utf-8"))
+                if not isinstance(parsed, dict):
+                    raise ValueError("Invalid config")
+            data = load_raw_config()
+            raw = data.get("autodiscovery")
+            if not isinstance(raw, dict):
+                raw = data["autodiscovery"] = {}
+            raw["enabled"] = self._enabled_cb.isChecked()
+            raw["interval"] = self._interval_combo.currentData()
+            if not save_raw_config(data):
+                raise OSError("Save failed")
+            self._config_mgr.load()
+            if self._discovery:
+                self._discovery.configure(self._config_mgr.get())
+            self._sync_controls()
+        except Exception:
+            self._sync_controls()
+            self._status_lbl.setText("Não foi possível salvar a configuração da descoberta automática.")
+
+    def _scan_now(self):
+        if self._discovery:
+            self._discovery.configure(self._config_mgr.get())
+            self._discovery.trigger_poll()
+            self._status_lbl.setText("Busca solicitada…")
+
+
+class DiscoverySettingsDialog(QDialog):
+    def __init__(self, config_mgr, discovery, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"{APP_NAME} — Descoberta automática")
+        self.setMinimumWidth(500)
+        self.resize(540, 400)
+        self.setStyleSheet(f"QDialog {{ background: {BG_DARK}; }} QLabel {{ background: transparent; }}")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        self._discovery_widget = DiscoverySettingsWidget(config_mgr, discovery, self)
+        layout.addWidget(self._discovery_widget)
+        layout.addWidget(_link_label("Abrir configuração do GitHub ↗",
+                                    lambda: OPEN_IN_EDITOR and OPEN_IN_EDITOR()))
+        close = QPushButton("Fechar")
+        close.setStyleSheet(_SECONDARY_BTN_CSS)
+        close.clicked.connect(self.accept)
+        layout.addWidget(close, 0, Qt.AlignmentFlag.AlignRight)
+
+
 class SettingsDialog(QDialog):
     _NAV = [
         ("workflows",     "Workflows"),
@@ -303,9 +435,10 @@ class SettingsDialog(QDialog):
         ("yaml",          "Raw YAML"),
     ]
 
-    def __init__(self, config_mgr, parent=None):
+    def __init__(self, config_mgr, parent=None, discovery=None):
         super().__init__(parent)
         self._config_mgr = config_mgr
+        self._discovery = discovery
         self.setWindowTitle(f"{APP_NAME} - Settings")
         self.setMinimumSize(780, 600)
         # QLabel reset: the app-wide `QWidget { background-color }` rule would
@@ -416,6 +549,8 @@ class SettingsDialog(QDialog):
             QMessageBox.warning(self, "Settings", "Could not write config.yaml.")
         # Pick the change up immediately instead of waiting for the 5s watcher.
         self._config_mgr.load()
+        if self._discovery:
+            self._discovery.configure(self._config_mgr.get())
 
     # ==================================================================
     # Workflows page
@@ -954,6 +1089,8 @@ class SettingsDialog(QDialog):
                                       "https://github.com/settings/tokens"))
         card2_lay.addWidget(open_tokens)
         lay.addWidget(card2)
+        self._discovery_widget = DiscoverySettingsWidget(self._config_mgr, self._discovery)
+        lay.addWidget(self._discovery_widget)
         return page
 
     def _save_token(self):

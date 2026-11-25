@@ -8,6 +8,7 @@ cooldown, username cache) hold shared state across all pollers.
 from __future__ import annotations
 
 import functools
+import hashlib
 import re
 import sys
 import threading
@@ -120,7 +121,8 @@ def _github_api_get(url: str, token: str, session: Optional[requests.Session] = 
     if remaining > 0:
         raise RateLimited(remaining, reason or "cooldown")
 
-    cache_key = (url, _params_key(params))
+    # Changing accounts must never reuse another token's cached repository list.
+    cache_key = (hashlib.sha256(token.encode()).digest(), url, _params_key(params))
     with _etag_lock:
         cached = _etag_cache.get(cache_key)
 
@@ -280,7 +282,7 @@ def _prune_cache(cache: dict, max_size: int):
 
 # ETag / conditional-request cache — 304 responses don't count against
 # GitHub's primary rate limit, so every hit here is a free poll.
-# Keyed by (url, sorted-params-tuple) → (etag, parsed_json).
+# Keyed by (token digest, url, sorted-params-tuple) → (etag, parsed_json).
 _etag_cache: dict = {}
 _etag_lock = threading.Lock()
 

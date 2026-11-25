@@ -1,0 +1,11 @@
+[Unit]
+Description=Sincroniza os workflows do GitHub com o Actions Monitor
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.local/share/actionsmonitor-sync/sync_github_workflows.py --config %h/.local/opt/ActionsMonitor-linux/config.yaml --owner Marcelo7889 --apply
+TimeoutStartSec=4min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true

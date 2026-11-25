@@ -28,6 +28,20 @@
 #   4. Copy the generated token (starts with ghp_) and paste it below
 github_token: ""
 
+# Optional: automatically discover repositories owned by the token's account.
+# Enable from the gear icon → Descoberta automática (also in GitHub account
+# settings when beta.settings_ui is enabled). No username needs to be entered.
+# Scans immediately when enabled and periodically while the app is running,
+# including when minimized to the tray. Existing entries/settings are preserved.
+# Adds active workflows in existing/new repositories; ignores archived/disabled
+# repositories. Projects without workflows are picked up once workflows exist.
+# Disabling stops discovery and keeps all workflows already added.
+# Private repos require token access and Actions read permissions.
+autodiscovery:
+  enabled: false
+  interval: "5m"       # minimum 1 minute; UI offers 1m, 5m, 15m and 30m
+  polling_rate: 60      # status-poll interval in seconds for newly added entries
+
 # Optional: Jira base URL
 # When set, Jira ticket IDs are extracted from branch names (e.g. EDU-1234)
 # and shown as clickable badges on PR and actor-mode rows.

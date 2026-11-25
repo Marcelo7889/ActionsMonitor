@@ -1,5 +1,13 @@
 # Changelog
 
+### 2026-11-25
+
+- **Native opt-in repository autodiscovery** — the gear opens a discovery dialog even without the beta settings UI; the same controls are available under GitHub account. The authenticated token determines the account. A cancellable background worker scans all owned repositories/workflow pages immediately on opt-in and on a configurable interval (default five minutes), adding active workflows without duplicates or overwriting settings/comments. Disabling or switching accounts invalidates in-flight results; discoveries are atomically persisted and start monitoring without a restart. Adds manual discovery, visible scan/error status, per-token API caches and offline integration tests. Works on Windows and Linux without external schedulers.
+
+### 2026-11-25
+
+- **Automatic workflow discovery on Linux** — a personal systemd user timer discovers owned GitHub repositories and active workflows every five minutes, preserving existing config entries, comments and credentials. Includes atomic writes, a private initial backup, duplicate detection, pagination and offline tests. See `README-autodiscovery.md`.
+
 ### 2026-11-20
 
 - **KDE Plasma integration** — new pure-data `src/desktop.py` resolves the palette once at startup. Inside a Plasma session (`desktop.theme: auto`, default) the UI now follows the KDE colour scheme read from `~/.config/kdeglobals`: Breeze, Breeze Dark or any custom scheme, the Plasma accent colour, the "General" UI font, the Breeze icon theme for the header buttons and tray menu, and the scheme's Positive / Negative / Neutral colours for statuses and badges (light schemes recolour the WizX20 wordmark so it stays legible). Qt gets a matching Fusion palette so message boxes and other un-styled widgets fit in too. Elsewhere — and with `theme: brand` — the warm dark theme is unchanged pixel for pixel: the ~200 hard-coded colour literals across `widgets.py`, `main.py`, `settings_ui.py` and `icons.py` became named palette roles whose brand values are the old literals. `ACTIONS_MONITOR_THEME=brand|system` overrides per run.
